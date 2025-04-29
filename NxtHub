@@ -1,0 +1,141 @@
+// Main plugin class package me.yourname.deluxehub;
+
+import org.bukkit.Bukkit; import org.bukkit.Location; import org.bukkit.Material; import org.bukkit.configuration.file.FileConfiguration; import org.bukkit.entity.Player; import org.bukkit.event.EventHandler; import org.bukkit.event.Listener; import org.bukkit.event.inventory.InventoryClickEvent; import org.bukkit.event.player.PlayerJoinEvent; import org.bukkit.event.player.PlayerQuitEvent; import org.bukkit.event.player.PlayerMoveEvent; import org.bukkit.event.player.PlayerCommandPreprocessEvent; import org.bukkit.event.entity.EntityDamageEvent; import org.bukkit.event.entity.FoodLevelChangeEvent; import org.bukkit.inventory.Inventory; import org.bukkit.inventory.ItemStack; import org.bukkit.inventory.meta.ItemMeta; import org.bukkit.plugin.java.JavaPlugin;
+
+public class NxtHub extends JavaPlugin implements Listener {
+
+private FileConfiguration config;
+private Location spawnLocation;
+
+@Override
+public void onEnable() {
+    saveDefaultConfig();
+    config = getConfig();
+
+    if (config.contains("spawn")) {
+        double x = config.getDouble("spawn.x");
+        double y = config.getDouble("spawn.y");
+        double z = config.getDouble("spawn.z");
+        float yaw = (float) config.getDouble("spawn.yaw");
+        float pitch = (float) config.getDouble("spawn.pitch");
+        String world = config.getString("spawn.world");
+        spawnLocation = new Location(Bukkit.getWorld(world), x, y, z, yaw, pitch);
+    }
+
+    getCommand("setspawn").setExecutor((sender, command, label, args) -> {
+        if (!(sender instanceof Player)) return true;
+        Player player = (Player) sender;
+        Location loc = player.getLocation();
+        config.set("spawn.x", loc.getX());
+        config.set("spawn.y", loc.getY());
+        config.set("spawn.z", loc.getZ());
+        config.set("spawn.yaw", loc.getYaw());
+        config.set("spawn.pitch", loc.getPitch());
+        config.set("spawn.world", loc.getWorld().getName());
+        saveConfig();
+        spawnLocation = loc;
+        player.sendMessage("Spawn set successfully.");
+        return true;
+    });
+
+    Bukkit.getPluginManager().registerEvents(this, this);
+    getLogger().info("NxtHub enabled.");
+}
+
+@EventHandler
+public void onJoin(PlayerJoinEvent event) {
+    Player player = event.getPlayer();
+    event.setJoinMessage("§a" + player.getName() + " joined the hub.");
+    if (spawnLocation != null) player.teleport(spawnLocation);
+    player.setHealth(20);
+    player.setFoodLevel(20);
+    player.getInventory().clear();
+
+    ItemStack navigator = new ItemStack(Material.COMPASS);
+    ItemMeta meta = navigator.getItemMeta();
+    meta.setDisplayName("§bServer Navigator");
+    navigator.setItemMeta(meta);
+    player.getInventory().setItem(4, navigator);
+}
+
+@EventHandler
+public void onQuit(PlayerQuitEvent event) {
+    event.setQuitMessage("§c" + event.getPlayer().getName() + " left the hub.");
+}
+
+@EventHandler
+public void onVoid(PlayerMoveEvent event) {
+    if (event.getTo().getY() <= 0 && spawnLocation != null) {
+        event.getPlayer().teleport(spawnLocation);
+    }
+}
+
+@EventHandler
+public void onCommand(PlayerCommandPreprocessEvent event) {
+    if (!event.getPlayer().hasPermission("deluxehub.bypass")) {
+        event.getPlayer().sendMessage("§cCommands are disabled in the hub.");
+        event.setCancelled(true);
+    }
+}
+
+@EventHandler
+public void onDamage(EntityDamageEvent event) {
+    if (event.getEntity() instanceof Player) {
+        event.setCancelled(true);
+    }
+}
+
+@EventHandler
+public void onHunger(FoodLevelChangeEvent event) {
+    if (event.getEntity() instanceof Player) {
+        event.setCancelled(true);
+    }
+}
+
+@EventHandler
+public void onInventoryClick(InventoryClickEvent event) {
+    if (event.getView().getTitle().equals("§9Server Selector")) {
+        event.setCancelled(true);
+        Player player = (Player) event.getWhoClicked();
+        ItemStack clicked = event.getCurrentItem();
+        if (clicked == null || !clicked.hasItemMeta()) return;
+        String name = clicked.getItemMeta().getDisplayName();
+
+        if (name.equals("§aSurvival")) {
+            player.sendMessage("§aConnecting to Survival server...");
+            // Add BungeeCord support here
+        } else if (name.equals("§bSkyblock")) {
+            player.sendMessage("§bConnecting to Skyblock server...");
+        }
+
+        player.closeInventory();
+    }
+}
+
+@EventHandler
+public void onNavigatorUse(org.bukkit.event.player.PlayerInteractEvent event) {
+    Player player = event.getPlayer();
+    ItemStack item = player.getInventory().getItemInMainHand();
+    if (item == null || !item.hasItemMeta()) return;
+    if (!item.getItemMeta().getDisplayName().equals("§bServer Navigator")) return;
+
+    Inventory gui = Bukkit.createInventory(null, 9, "§9Server Selector");
+
+    ItemStack survival = new ItemStack(Material.GRASS_BLOCK);
+    ItemMeta survivalMeta = survival.getItemMeta();
+    survivalMeta.setDisplayName("§aSurvival");
+    survival.setItemMeta(survivalMeta);
+
+    ItemStack skyblock = new ItemStack(Material.DIAMOND_BLOCK);
+    ItemMeta skyMeta = skyblock.getItemMeta();
+    skyMeta.setDisplayName("§bSkyblock");
+    skyblock.setItemMeta(skyMeta);
+
+    gui.setItem(3, survival);
+    gui.setItem(5, skyblock);
+
+    player.openInventory(gui);
+}
+
+}
+
